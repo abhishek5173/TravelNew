@@ -19,7 +19,9 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.abhishek5173.Travel",
+      "googleServicesFile": "./android/app/google-services.json"
     },
     "web": {
       "output": "static",
@@ -27,6 +29,8 @@
     },
     "plugins": [
       "expo-router",
+      "@react-native-firebase/app",
+      "@react-native-firebase/messaging",
       [
         "expo-splash-screen",
         {
@@ -43,6 +47,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d2181baa-43f4-4deb-8d9f-c032a3312119"
+      }
+    },
+    "owner": "abhishek5173"
   }
 }
