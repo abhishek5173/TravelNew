@@ -59,7 +59,7 @@ export default function HomeScreen() {
     if (!token) return;
 
     console.log("FCM Token:", token);
-
+ 
     try {
       const response = await axios.post(SAVE_TOKEN, {
         "token": token,
