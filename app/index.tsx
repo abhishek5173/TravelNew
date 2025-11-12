@@ -7,12 +7,14 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
 import messaging from "@react-native-firebase/messaging";
+import * as Application from "expo-application";
+import { PermissionsAndroid, Platform } from "react-native";
 
 type Ticket = {
   phone: string;
@@ -27,51 +29,83 @@ export default function HomeScreen() {
   const OPEN_TICKETS = `${baseURL}tourist-chatbot/get-escalated-chats`;
   const SAVE_TOKEN = `${baseURL}tourist-chatbot/save-token`;
 
-
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(false);
 
- async function registerForFCMToken() {
-  try {
-    // Request user permissions for notifications
-    const authStatus = await messaging().requestPermission();
-    const enabled =
-      authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-      authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+  useEffect(() => {
+    const unsubscribe = messaging().onMessage(async (remoteMessage) => {
+      console.log("Foreground message:", remoteMessage);
+      Toast.show({
+        type: "info",
+        text1: remoteMessage.notification?.title,
+        text2: remoteMessage.notification?.body,
+      });
+    });
 
-    if (!enabled) {
-      console.log("Permission not granted");
+    return unsubscribe;
+  }, []);
+
+  async function registerForFCMToken() {
+    try {
+      // Request user permissions for notifications
+
+      if (Platform.OS === "android" && Platform.Version >= 33) {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+        );
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          console.log("Notification permission denied");
+        }
+      }
+
+      const authStatus = await messaging().requestPermission();
+      const enabled =
+        authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+        authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+
+      if (!enabled) {
+        console.log("Permission not granted");
+        return null;
+      }
+
+      // Get FCM token
+      const token = await messaging().getToken();
+      return token;
+    } catch (error) {
+      console.log("FCM Token Error:", error);
       return null;
     }
-
-    // Get FCM token
-    const token = await messaging().getToken();
-    return token;
-  } catch (error) {
-    console.log("FCM Token Error:", error);
-    return null;
   }
-}
 
-  useEffect(() => {
-  const setup = async () => {
-    const token = await registerForFCMToken();
-    if (!token) return;
-
-    console.log("FCM Token:", token);
- 
-    try {
-      const response = await axios.post(SAVE_TOKEN, {
-        "token": token,
-      });
-      console.log("Token saved:", response.data);
-    } catch (error) {
-      console.log("Token save error:", error);
+  const getDeviceId = async () => {
+    if (Platform.OS === "android") {
+      return await Application.getAndroidId(); // returns a promise
     }
+    return null;
   };
 
-  setup();
-}, []);
+  useEffect(() => {
+    const setup = async () => {
+      const token = await registerForFCMToken();
+      if (!token) return;
+
+      console.log("FCM Token:", token);
+      const deviceId = await getDeviceId();
+      console.log("Device ID:", deviceId);
+
+      try {
+        const response = await axios.post(SAVE_TOKEN, {
+          token: token,
+          user_id: deviceId,
+        });
+        console.log("Token saved:", response.data);
+      } catch (error) {
+        console.log("Token save error:", error);
+      }
+    };
+
+    setup();
+  }, []);
 
   const fetchTickets = async () => {
     try {
@@ -95,10 +129,17 @@ export default function HomeScreen() {
     <SafeAreaView style={{ flex: 1 }}>
       <View style={styles.container}>
         <Text style={styles.header}>Travel Guide Dashboard</Text>
+        
 
         <View style={styles.divider} />
+        
 
-        <Text style={styles.subHeader}>Live Tickets</Text>
+       <View style={styles.topRow}>
+         <Text style={styles.subHeader}>Live Tickets</Text>
+          <TouchableOpacity style={styles.refreshButton} onPress={fetchTickets}>
+            <Text style={styles.refreshButtonText}>Refresh 🔄</Text>
+          </TouchableOpacity>
+       </View>
 
         <ScrollView>
           {loading ? (
@@ -147,7 +188,9 @@ export default function HomeScreen() {
 
                   <Text style={styles.ticketDate}>{item.created_at}</Text>
 
-                  <Text numberOfLines={2} style={styles.ticketDesc}>{item.description}</Text>
+                  <Text numberOfLines={2} style={styles.ticketDesc}>
+                    {item.description}
+                  </Text>
                 </View>
               </TouchableOpacity>
             ))
@@ -205,7 +248,6 @@ const styles = StyleSheet.create({
   ticketTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    
   },
   ticketTitle: {
     fontSize: 14,
@@ -229,5 +271,21 @@ const styles = StyleSheet.create({
   },
   ticketDesc: {
     marginTop: 16,
+  },
+  topRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  refreshButton: {
+    backgroundColor: "#3b82f6",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  refreshButtonText: {
+    color: "white",
+    fontWeight: "600",
+    fontSize: 14,
   },
 });

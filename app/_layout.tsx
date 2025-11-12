@@ -1,15 +1,18 @@
-import * as Notifications from "expo-notifications";
+import messaging from "@react-native-firebase/messaging";
 import { Stack } from "expo-router";
+import { Alert } from "react-native";
+
+// messaging().setBackgroundMessageHandler(async (remoteMessage) => {
+//   console.log("BG message:", remoteMessage);
+// });
 
 export default function RootLayout() {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-      shouldShowBanner: true, // ✅ required in SDK 51+
-      shouldShowList: true, // ✅ required in SDK 51+
-    }),
+  // Foreground notifications
+  messaging().onMessage(async (remoteMessage) => {
+    const title = remoteMessage.notification?.title ?? "New Notification";
+    const body = remoteMessage.notification?.body ?? "";
+
+    Alert.alert(title, body);
   });
 
   return (

@@ -2,6 +2,7 @@ import axios from "axios";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
+  KeyboardAvoidingView, Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
 
 type Chat = {
   type: string;
@@ -101,9 +103,14 @@ const ticketspage = () => {
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
-      <ScrollView style={styles.page}>
+      <KeyboardAvoidingView
+    style={{ flex: 1 }}
+    behavior={Platform.OS === "ios" ? "padding" : "height"}
+    keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 0} // adjust if you have header
+  >
+     <ScrollView style={styles.page}>
         {/* Ticket Info */}
-        <View style={styles.ticketInfoBox}>
+        {/* <View style={styles.ticketInfoBox}>
           <View style={styles.ticketInfoTop}>
             <Text style={styles.ticketInfoTitle}>Ticket Info</Text>
 
@@ -122,7 +129,7 @@ const ticketspage = () => {
           <Text style={styles.ticketCreated}>
             Created : {ticket.created_at.replace(" ", " At ")}
           </Text>
-        </View>
+        </View> */}
 
         {/* Ticket Details */}
         <View style={styles.ticketDetailsBox}>
@@ -139,7 +146,7 @@ const ticketspage = () => {
           <Text style={styles.chatHistoryLabel}>Chat History</Text>
 
           {/* Chat History */}
-          <ScrollView style={styles.chatHistoryBox}>
+          <View style={styles.chatHistoryBox}>
             <ScrollView
               ref={scrollRef}
               showsVerticalScrollIndicator={false}
@@ -214,9 +221,10 @@ const ticketspage = () => {
                 </Text>
               </TouchableOpacity>
             </View>
-          </ScrollView>
+          </View>
         </View>
       </ScrollView>
+  </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -281,6 +289,7 @@ const styles = StyleSheet.create({
   },
 
   chatHistoryBox: {
+    height: 480,
     backgroundColor: "#e5e5e5",
     padding: 12,
     marginTop: 8,
@@ -288,7 +297,7 @@ const styles = StyleSheet.create({
   },
 
   chatScroll: {
-    height: 220,
+    height: 400,
     marginBottom: 20,
     paddingHorizontal: 8,
   },
@@ -321,7 +330,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#d1d5db",
     borderRadius: 12,
     height: 120,
-    padding: 10,
+    padding: 6,
   },
   inputBox: {
     flex: 1,
