@@ -1,4 +1,5 @@
 import axios from "axios";
+import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -52,6 +53,11 @@ export default function TicketPage() {
   const [locationReason, setLocationReason] = useState("");
   const [isRequestingLocation, setIsRequestingLocation] = useState(false);
 
+  const [showImageDialog, setShowImageDialog] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<any>(null);
+  const [imageCaption, setImageCaption] = useState("");
+  const [isSendingImage, setIsSendingImage] = useState(false);
+
   const [aiResponse, setAiResponse] = useState<string[]>([]);
   const [locationInfo, setLocationInfo] = useState<{
     lat: number;
@@ -79,6 +85,66 @@ export default function TicketPage() {
     }).start(() => setSheetType(null));
   };
 
+  const pickImage = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      alert("Permission required to pick images");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      setSelectedImage(result.assets[0]); // contains uri
+    }
+  };
+
+  const handleSendImage = async () => {
+    if (!selectedImage) return;
+
+    try {
+      setIsSendingImage(true);
+
+      const form = new FormData();
+
+      // Add caption
+      form.append("img_caption", imageCaption);
+
+      // Fetch the local file and convert to blob
+      const file = {
+        uri: selectedImage.uri,
+        type: "image/jpeg",
+        name: "photo.jpg",
+      };
+
+      // Append the image correctly (React Native FormData syntax)
+      form.append("file1", file as any);
+
+      await axios.post(
+        `${SEND_PHOTO}?phone_num=${ticket.phone}`, // phone in query
+        form,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+
+      // Reset UI
+      setShowImageDialog(false);
+      setSelectedImage(null);
+      setImageCaption("");
+      fetchMessages();
+    } catch (error) {
+      console.log("Image send error:", error);
+    } finally {
+      setIsSendingImage(false);
+    }
+  };
+
   // ==========================
   // FETCHING
   // ==========================
@@ -104,18 +170,23 @@ export default function TicketPage() {
 
       const last = msgs[msgs.length - 1];
       if (last?.type === "user") fetchAIResponse(last.text);
-
-      const loc = msgs.find((m: any) => m.type === "location");
-      if (loc) {
-        setLocationInfo({
-          lat: loc.latitude,
-          lng: loc.longitude,
-        });
-      }
     } catch (error) {
       console.log("Chat Fetch Error", error);
     }
   };
+
+  useEffect(() => {
+    if (messages.length === 0) return;
+
+    const loc = [...messages].reverse().find((m) => m.type === "location");
+
+    if (loc) {
+      setLocationInfo({
+        lat: loc.latitude,
+        lng: loc.longitude,
+      });
+    }
+  }, [messages.length]);
 
   const rephraseMessage = async (message: string) => {
     try {
@@ -241,17 +312,35 @@ export default function TicketPage() {
             </View>
 
             {showActionMenu && (
-              <View style={styles.actionMenu}>
-                <TouchableOpacity
-                  style={styles.menuItem}
-                  onPress={() => {
-                    setShowActionMenu(false);
-                    setShowLocationDialog(true);
-                  }}
-                >
-                  <Text style={styles.menuItemText}>📍 Ask for Location</Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity
+                style={styles.actionMenuBackdrop}
+                activeOpacity={1}
+                onPress={() => setShowActionMenu(false)} // closes on outside tap
+              >
+                <View style={styles.actionMenuBox}>
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={() => {
+                      setShowActionMenu(false);
+                      setShowLocationDialog(true);
+                    }}
+                  >
+                    <Text style={styles.menuItemText}>📍 Ask for Location</Text>
+                  </TouchableOpacity>
+
+                  <View style={styles.menuDivider} />
+
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={() => {
+                      setShowActionMenu(false);
+                      setShowImageDialog(true);
+                    }}
+                  >
+                    <Text style={styles.menuItemText}>📸 Ask for Photo</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
             )}
 
             {/* CHAT BOX */}
@@ -372,63 +461,148 @@ export default function TicketPage() {
             </View>
           </View>
 
+          {showImageDialog && (
+            <View style={styles.dialogOverlay}>
+              <View style={styles.dialogBox}>
+                {/* Header */}
+                <View style={styles.dialogHeader}>
+                  <Text style={styles.dialogTitle}>Send Image</Text>
+
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowImageDialog(false);
+                      setSelectedImage(null);
+                      setImageCaption("");
+                    }}
+                  >
+                    <Text style={styles.dialogClose}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Body */}
+                <View style={{ padding: 16 }}>
+                  {/* Image Picker Label */}
+                  <Text style={styles.dialogLabel}>Select Image</Text>
+
+                  <TouchableOpacity
+                    onPress={pickImage}
+                    style={styles.filePickerBox}
+                  >
+                    <Text style={styles.filePickerText}>
+                      {selectedImage ? "Change Image" : "Pick Image"}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {selectedImage && (
+                    <Text style={styles.selectedImageText}>
+                      Selected: {selectedImage.fileName || "Image"}
+                    </Text>
+                  )}
+
+                  {/* Caption */}
+                  <Text style={[styles.dialogLabel, { marginTop: 14 }]}>
+                    Caption (optional)
+                  </Text>
+
+                  <TextInput
+                    multiline
+                    placeholder="Enter caption..."
+                    value={imageCaption}
+                    onChangeText={setImageCaption}
+                    style={styles.dialogTextarea}
+                  />
+
+                  {/* Buttons */}
+                  <View style={styles.dialogButtons}>
+                    <TouchableOpacity
+                      style={[styles.dialogButton, styles.dialogCancel]}
+                      onPress={() => {
+                        setShowImageDialog(false);
+                        setSelectedImage(null);
+                        setImageCaption("");
+                      }}
+                      disabled={isSendingImage}
+                    >
+                      <Text style={styles.dialogCancelText}>Cancel</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.dialogButton,
+                        styles.dialogSubmit,
+                        !selectedImage && { opacity: 0.5 },
+                      ]}
+                      onPress={handleSendImage}
+                      disabled={isSendingImage || !selectedImage}
+                    >
+                      <Text style={styles.dialogSubmitText}>
+                        {isSendingImage ? "Sending..." : "Send Image"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </View>
+          )}
+
           {showLocationDialog && (
-  <View style={styles.dialogOverlay}>
-    <View style={styles.dialogBox}>
-      {/* Title */}
-      <View style={styles.dialogHeader}>
-        <Text style={styles.dialogTitle}>Request Location</Text>
+            <View style={styles.dialogOverlay}>
+              <View style={styles.dialogBox}>
+                {/* Title */}
+                <View style={styles.dialogHeader}>
+                  <Text style={styles.dialogTitle}>Request Location</Text>
 
-        <TouchableOpacity
-          onPress={() => {
-            setShowLocationDialog(false);
-            setLocationReason("");
-          }}
-        >
-          <Text style={styles.dialogClose}>✕</Text>
-        </TouchableOpacity>
-      </View>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowLocationDialog(false);
+                      setLocationReason("");
+                    }}
+                  >
+                    <Text style={styles.dialogClose}>✕</Text>
+                  </TouchableOpacity>
+                </View>
 
-      {/* Body */}
-      <View style={{ padding: 16 }}>
-        <Text style={styles.dialogLabel}>Reason for requesting location</Text>
+                {/* Body */}
+                <View style={{ padding: 16 }}>
+                  <Text style={styles.dialogLabel}>
+                    Reason for requesting location
+                  </Text>
 
-        <TextInput
-          multiline
-          placeholder="Enter reason..."
-          value={locationReason}
-          onChangeText={setLocationReason}
-          style={styles.dialogTextarea}
-        />
+                  <TextInput
+                    multiline
+                    placeholder="Enter reason..."
+                    value={locationReason}
+                    onChangeText={setLocationReason}
+                    style={styles.dialogTextarea}
+                  />
 
-        {/* Buttons */}
-        <View style={styles.dialogButtons}>
-          <TouchableOpacity
-            style={[styles.dialogButton, styles.dialogCancel]}
-            onPress={() => {
-              setShowLocationDialog(false);
-              setLocationReason("");
-            }}
-            disabled={isRequestingLocation}
-          >
-            <Text style={styles.dialogCancelText}>Cancel</Text>
-          </TouchableOpacity>
+                  {/* Buttons */}
+                  <View style={styles.dialogButtons}>
+                    <TouchableOpacity
+                      style={[styles.dialogButton, styles.dialogCancel]}
+                      onPress={() => {
+                        setShowLocationDialog(false);
+                        setLocationReason("");
+                      }}
+                      disabled={isRequestingLocation}
+                    >
+                      <Text style={styles.dialogCancelText}>Cancel</Text>
+                    </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.dialogButton, styles.dialogSubmit]}
-            onPress={askLocation}
-            disabled={isRequestingLocation}
-          >
-            <Text style={styles.dialogSubmitText}>
-              {isRequestingLocation ? "Requesting..." : "Request"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </View>
-  </View>
-)}
-
+                    <TouchableOpacity
+                      style={[styles.dialogButton, styles.dialogSubmit]}
+                      onPress={askLocation}
+                      disabled={isRequestingLocation}
+                    >
+                      <Text style={styles.dialogSubmitText}>
+                        {isRequestingLocation ? "Requesting..." : "Request"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </View>
+          )}
 
           {/* BOTTOM SHEET */}
           {sheetType && (
@@ -716,105 +890,167 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
   },
 
+  dialogOverlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+    zIndex: 999,
+  },
+
+  dialogBox: {
+    width: "100%",
+    maxWidth: 380,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+
+  dialogHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+
+  dialogTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111",
+  },
+
+  dialogClose: {
+    fontSize: 20,
+    color: "#777",
+  },
+
+  dialogLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: 6,
+    color: "#333",
+  },
+
+  dialogTextarea: {
+    backgroundColor: "#f1f5f9",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 10,
+    padding: 12,
+    minHeight: 80,
+    textAlignVertical: "top",
+    marginBottom: 14,
+  },
+
+  dialogButtons: {
+    flexDirection: "row",
+    gap: 10,
+  },
+
+  dialogButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+
+  dialogCancel: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+
+  dialogCancelText: {
+    color: "#333",
+    fontWeight: "600",
+  },
+
+  dialogSubmit: {
+    backgroundColor: "#1d4ed8",
+  },
+
+  dialogSubmitText: {
+    color: "#fff",
+    fontWeight: "600",
+  },
+
+  filePickerBox: {
+    backgroundColor: "#f1f5f9",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+
+  filePickerText: {
+    color: "#1d4ed8",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+
+  selectedImageText: {
+    fontSize: 12,
+    color: "#666",
+    marginTop: 6,
+  },
+
+  actionMenuOverlay: {
+    position: "absolute",
+    right: 16,
+    top: 90,
+    zIndex: 50,
+  },
+
+  actionMenuBox: {
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    width: 180,
+    paddingVertical: 6,
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+
   menuItem: {
     paddingVertical: 10,
+    paddingHorizontal: 12,
   },
 
   menuItemText: {
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 14,
+    fontWeight: "500",
     color: "#1e3a8a",
   },
 
-  dialogOverlay: {
-  position: "absolute",
-  left: 0,
-  right: 0,
-  top: 0,
-  bottom: 0,
-  backgroundColor: "rgba(0,0,0,0.5)",
-  justifyContent: "center",
-  alignItems: "center",
-  padding: 20,
-  zIndex: 999,
-},
+  menuDivider: {
+    height: 1,
+    backgroundColor: "#e5e7eb",
+    marginVertical: 2,
+  },
 
-dialogBox: {
-  width: "100%",
-  maxWidth: 380,
-  backgroundColor: "#fff",
-  borderRadius: 12,
-  overflow: "hidden",
-},
-
-dialogHeader: {
-  flexDirection: "row",
-  justifyContent: "space-between",
-  alignItems: "center",
-  padding: 16,
-  borderBottomWidth: 1,
-  borderColor: "#e5e7eb",
-},
-
-dialogTitle: {
-  fontSize: 16,
-  fontWeight: "700",
-  color: "#111",
-},
-
-dialogClose: {
-  fontSize: 20,
-  color: "#777",
-},
-
-dialogLabel: {
-  fontSize: 13,
-  fontWeight: "600",
-  marginBottom: 6,
-  color: "#333",
-},
-
-dialogTextarea: {
-  backgroundColor: "#f1f5f9",
-  borderWidth: 1,
-  borderColor: "#e5e7eb",
-  borderRadius: 10,
-  padding: 12,
-  minHeight: 80,
-  textAlignVertical: "top",
-  marginBottom: 14,
-},
-
-dialogButtons: {
-  flexDirection: "row",
-  gap: 10,
-},
-
-dialogButton: {
-  flex: 1,
-  paddingVertical: 12,
-  borderRadius: 10,
-  alignItems: "center",
-},
-
-dialogCancel: {
-  backgroundColor: "#fff",
-  borderWidth: 1,
-  borderColor: "#e5e7eb",
-},
-
-dialogCancelText: {
-  color: "#333",
-  fontWeight: "600",
-},
-
-dialogSubmit: {
-  backgroundColor: "#1d4ed8",
-},
-
-dialogSubmitText: {
-  color: "#fff",
-  fontWeight: "600",
-},
-
+  actionMenuBackdrop: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "transparent",
+    zIndex: 50,
+    justifyContent: "flex-start",
+    alignItems: "flex-end",
+    paddingTop: 90,
+    paddingRight: 16,
+  },
 });
