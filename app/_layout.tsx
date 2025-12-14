@@ -1,24 +1,47 @@
-import messaging from "@react-native-firebase/messaging";
+import { LoginForm } from "@/components/loginform";
+import { AuthProvider, useAuthContext } from "@/utils/authprovider";
 import { Stack } from "expo-router";
-import { Alert } from "react-native";
+import { ActivityIndicator, Text, View } from "react-native";
 
-// messaging().setBackgroundMessageHandler(async (remoteMessage) => {
-//   console.log("BG message:", remoteMessage);
-// });
 
 export default function RootLayout() {
-  // Foreground notifications
-  messaging().onMessage(async (remoteMessage) => {
-    const title = remoteMessage.notification?.title ?? "New Notification";
-    const body = remoteMessage.notification?.body ?? "";
+  function RootNavigator() {
+    const { isAuthenticated, loading } = useAuthContext();
 
-    Alert.alert(title, body);
-  });
+    // Show loading screen
+    if (loading) {
+      return (
+        <View
+          style={{
+            flex: 1,
+            justifyContent: "center",
+            alignItems: "center",
+            backgroundColor: "#fff",
+          }}
+        >
+          <ActivityIndicator size="large" />
+          <Text style={{ marginTop: 10, color: "#444" }}>Loading...</Text>
+        </View>
+      );
+    }
+
+    // Show login screen
+    if (!isAuthenticated) {
+      return <LoginForm />;
+    }
+
+    // Authenticated → Show app stack
+    return (
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="tickets" />
+      </Stack>
+    );
+  }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="tickets" />
-    </Stack>
+    <AuthProvider>
+      <RootNavigator />
+    </AuthProvider>
   );
 }

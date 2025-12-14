@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,10 +13,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
-import messaging from "@react-native-firebase/messaging";
-import * as Application from "expo-application";
-import { PermissionsAndroid, Platform } from "react-native";
-
 type Ticket = {
   phone: string;
   title: string;
@@ -24,97 +21,23 @@ type Ticket = {
   status: string;
 };
 
+const { width } = Dimensions.get("window");
+
 export default function HomeScreen() {
   const baseURL = process.env.EXPO_PUBLIC_baseURL;
-  const OPEN_TICKETS = `${baseURL}tourist-chatbot/get-escalated-chats`;
-  const SAVE_TOKEN = `${baseURL}tourist-chatbot/save-token`;
+  const OPEN_TICKETS = `${baseURL}/tourist-chatbot/get-escalated-chats`;
 
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    const unsubscribe = messaging().onMessage(async (remoteMessage) => {
-      console.log("Foreground message:", remoteMessage);
-      Toast.show({
-        type: "info",
-        text1: remoteMessage.notification?.title,
-        text2: remoteMessage.notification?.body,
-      });
-    });
-
-    return unsubscribe;
-  }, []);
-
-  async function registerForFCMToken() {
-    try {
-      // Request user permissions for notifications
-
-      if (Platform.OS === "android" && Platform.Version >= 33) {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
-        );
-        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-          console.log("Notification permission denied");
-        }
-      }
-
-      const authStatus = await messaging().requestPermission();
-      const enabled =
-        authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-        authStatus === messaging.AuthorizationStatus.PROVISIONAL;
-
-      if (!enabled) {
-        console.log("Permission not granted");
-        return null;
-      }
-
-      // Get FCM token
-      const token = await messaging().getToken();
-      return token;
-    } catch (error) {
-      console.log("FCM Token Error:", error);
-      return null;
-    }
-  }
-
-  const getDeviceId = async () => {
-    if (Platform.OS === "android") {
-      return await Application.getAndroidId(); // returns a promise
-    }
-    return null;
-  };
-
-  useEffect(() => {
-    const setup = async () => {
-      const token = await registerForFCMToken();
-      if (!token) return;
-
-      console.log("FCM Token:", token);
-      const deviceId = await getDeviceId();
-      console.log("Device ID:", deviceId);
-
-      try {
-        const response = await axios.post(SAVE_TOKEN, {
-          token: token,
-          user_id: deviceId,
-        });
-        console.log("Token saved:", response.data);
-      } catch (error) {
-        console.log("Token save error:", error);
-      }
-    };
-
-    setup();
-  }, []);
 
   const fetchTickets = async () => {
     try {
       setLoading(true);
       const response = await axios.get(OPEN_TICKETS);
       setTickets(response.data.response);
-      setLoading(false);
     } catch (error) {
       console.error("Some Error Occurred", error);
+    } finally {
       setLoading(false);
     }
   };
@@ -126,29 +49,37 @@ export default function HomeScreen() {
   const router = useRouter();
 
   return (
-    <SafeAreaView style={{ flex: 1 }}>
+    <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
-        <Text style={styles.header}>Travel Guide Dashboard</Text>
-        
+
+        {/* HEADER */}
+        <View style={styles.headerBox}>
+          <Text style={styles.header}>Dashboard</Text>
+          <Text style={styles.subText}>Live escalations from tourists</Text>
+        </View>
+
+        {/* TOP ROW */}
+        <View style={styles.topRow}>
+          <Text style={styles.sectionTitle}>Live Tickets</Text>
+          <TouchableOpacity style={styles.refreshButton} onPress={fetchTickets}>
+            <Text style={styles.refreshButtonText}>Refresh</Text>
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.divider} />
-        
 
-       <View style={styles.topRow}>
-         <Text style={styles.subHeader}>Live Tickets</Text>
-          <TouchableOpacity style={styles.refreshButton} onPress={fetchTickets}>
-            <Text style={styles.refreshButtonText}>Refresh 🔄</Text>
-          </TouchableOpacity>
-       </View>
-
-        <ScrollView>
+        {/* LIST */}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 40 }}
+        >
           {loading ? (
-            <ActivityIndicator />
+            <View style={{ marginTop: 40 }}>
+              <ActivityIndicator size="large" color="#3b82f6" />
+            </View>
           ) : tickets.length === 0 ? (
             <View style={styles.emptyBox}>
-              <Text style={styles.emptyText}>
-                No tickets available ✅ Great work!
-              </Text>
+              <Text style={styles.emptyText}>No active tickets 🎉</Text>
             </View>
           ) : (
             tickets.map((item, index) => (
@@ -161,29 +92,24 @@ export default function HomeScreen() {
                   })
                 }
               >
-                <View
-                  style={[
-                    styles.ticketCard,
-                    item.status === "live"
-                      ? styles.greenBorder
-                      : styles.yellowBorder,
-                  ]}
-                >
-                  <View style={styles.ticketTopRow}>
+                <View style={styles.ticketCard}>
+                  {/* Top row */}
+                  <View style={styles.ticketHeader}>
                     <Text style={styles.ticketTitle}>{item.title}</Text>
 
-                    <Text
+                    <View
                       style={[
-                        styles.statusBadge,
+                        styles.badge,
                         item.status === "live"
-                          ? styles.greenBadge
-                          : styles.yellowBadge,
+                          ? styles.liveBadge
+                          : styles.pendingBadge,
                       ]}
                     >
-                      🔻
-                      {item.status.charAt(0).toUpperCase() +
-                        item.status.slice(1)}
-                    </Text>
+                      <Text style={styles.badgeText}>
+                        {item.status.charAt(0).toUpperCase() +
+                          item.status.slice(1)}
+                      </Text>
+                    </View>
                   </View>
 
                   <Text style={styles.ticketDate}>{item.created_at}</Text>
@@ -203,89 +129,141 @@ export default function HomeScreen() {
   );
 }
 
+const CARD_WIDTH = width * 0.9;
+
 const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: "#f9fafb",
+  },
   container: {
     flex: 1,
-    padding: 24,
+    paddingHorizontal: 20,
+  },
+
+  // HEADER
+  headerBox: {
+    marginTop: 10,
+    marginBottom: 20,
   },
   header: {
-    fontSize: 40,
-    fontWeight: "bold",
+    fontSize: 30,
+    fontWeight: "700",
+    color: "#111",
   },
-  divider: {
-    width: "100%",
-    borderBottomWidth: 1,
-    marginTop: 8,
-    borderColor: "#333",
-  },
-  subHeader: {
-    marginTop: 8,
-    marginBottom: 24,
-    fontSize: 22,
-  },
-  emptyBox: {
-    alignItems: "center",
-    marginTop: 40,
-  },
-  emptyText: {
-    color: "#888",
-    fontSize: 18,
-  },
-  ticketCard: {
-    width: "100%",
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
-    height: 130,
-    marginTop: 12,
-  },
-  greenBorder: {
-    borderColor: "#22c55e",
-  },
-  yellowBorder: {
-    borderColor: "#b45309",
-  },
-  ticketTopRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  ticketTitle: {
+  subText: {
     fontSize: 14,
-    fontWeight: "600",
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 10,
-    color: "white",
-  },
-  greenBadge: {
-    backgroundColor: "#22c55e",
-  },
-  yellowBadge: {
-    backgroundColor: "#b45309",
-  },
-  ticketDate: {
+    color: "#555",
     marginTop: 4,
-    color: "#222",
   },
-  ticketDesc: {
-    marginTop: 16,
-  },
+
+  // TOP ROW
   topRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: 10,
   },
+
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#222",
+  },
+
   refreshButton: {
-    backgroundColor: "#3b82f6",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+    backgroundColor: "#e8f0ff",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#c7d7fe",
   },
   refreshButtonText: {
-    color: "white",
+    color: "#1d4ed8",
     fontWeight: "600",
     fontSize: 14,
+  },
+
+  divider: {
+    width: "100%",
+    height: 1,
+    backgroundColor: "#e5e5e5",
+    marginBottom: 12,
+  },
+
+  // EMPTY STATE
+  emptyBox: {
+    alignItems: "center",
+    marginTop: 60,
+  },
+  emptyText: {
+    color: "#999",
+    fontSize: 16,
+  },
+
+  // CARD
+  ticketCard: {
+    width: CARD_WIDTH,
+    alignSelf: "center",
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#ebebeb",
+
+    // elegant shadow
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+
+  ticketHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+
+  ticketTitle: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: "#111",
+    flex: 1,
+    paddingRight: 10,
+  },
+
+  badge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+
+  liveBadge: {
+    backgroundColor: "#dcfce7",
+  },
+  pendingBadge: {
+    backgroundColor: "#fef9c3",
+  },
+
+  badgeText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#111",
+  },
+
+  ticketDate: {
+    marginTop: 6,
+    fontSize: 13,
+    color: "#666",
+  },
+
+  ticketDesc: {
+    marginTop: 12,
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#444",
   },
 });
