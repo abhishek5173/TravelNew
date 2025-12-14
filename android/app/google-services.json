@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "209482563176",
+    "project_id": "news-genie",
+    "storage_bucket": "news-genie.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:209482563176:android:21b9c0b324c9c46655c5dd",
+        "android_client_info": {
+          "package_name": "com.abhishek5173.Travel"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "209482563176-qlqpvl6vfcvj1sb51vq17dkun87rv6gk.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBnSC7P9frYTplJWQ_J7C41rHms7ky5YYE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "209482563176-3g2ankhkboclfgds3rj68q3kq7cl3kli.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

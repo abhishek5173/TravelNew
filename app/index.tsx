@@ -1,10 +1,13 @@
 import { useAuthContext } from "@/utils/authprovider";
+import messaging from "@react-native-firebase/messaging";
 import axios from "axios";
+import * as Application from "expo-application";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
+  PermissionsAndroid, Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -28,11 +31,83 @@ const { width } = Dimensions.get("window");
 export default function HomeScreen() {
   const baseURL = process.env.EXPO_PUBLIC_baseURL;
   const OPEN_TICKETS = `${baseURL}/tourist-chatbot/get-escalated-chats`;
-
+  const SAVE_TOKEN = `${baseURL}/tourist-chatbot/save-token`;
   const { logout } = useAuthContext();
 
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = messaging().onMessage(async (remoteMessage) => {
+      console.log("Foreground message:", remoteMessage);
+      Toast.show({
+        type: "info",
+        text1: remoteMessage.notification?.title,
+        text2: remoteMessage.notification?.body,
+      });
+    });
+
+    return unsubscribe;
+  }, []);
+
+  async function registerForFCMToken() {
+    try {
+      // Request user permissions for notifications
+
+      if (Platform.OS === "android" && Platform.Version >= 33) {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+        );
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          console.log("Notification permission denied");
+        }
+      }
+
+      const authStatus = await messaging().requestPermission();
+      const enabled =
+        authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+        authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+         if (!enabled) {
+        console.log("Permission not granted");
+        return null;
+      }
+
+      // Get FCM token
+      const token = await messaging().getToken();
+      return token;
+    } catch (error) {
+      console.log("FCM Token Error:", error);
+      return null;
+    }
+  }
+
+  const getDeviceId = async () => {
+    if (Platform.OS === "android") {
+      return await Application.getAndroidId(); // returns a promise
+    }
+    return null;
+  };
+
+   useEffect(() => {
+     const setup = async () => {
+      const token = await registerForFCMToken();
+      if (!token) return;
+      console.log("FCM Token:", token);
+      const deviceId = await getDeviceId();
+      console.log("Device ID:", deviceId);
+       try {
+        const response = await axios.post(SAVE_TOKEN, {
+          token: token,
+          user_id: deviceId,
+        });
+        console.log("Token saved:", response.data);
+      } catch (error) {
+        console.log("Token save error:", error);
+      }
+    };
+
+    setup();
+  }, []);
 
   const fetchTickets = async () => {
     try {

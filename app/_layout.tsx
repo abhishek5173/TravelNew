@@ -1,8 +1,8 @@
 import { LoginForm } from "@/components/loginform";
 import { AuthProvider, useAuthContext } from "@/utils/authprovider";
+import messaging from "@react-native-firebase/messaging";
 import { Stack } from "expo-router";
-import { ActivityIndicator, Text, View } from "react-native";
-
+import { ActivityIndicator, Alert, Text, View } from "react-native";
 
 export default function RootLayout() {
   function RootNavigator() {
@@ -29,6 +29,13 @@ export default function RootLayout() {
     if (!isAuthenticated) {
       return <LoginForm />;
     }
+
+    messaging().onMessage(async (remoteMessage) => {
+    const title = remoteMessage.notification?.title ?? "New Notification";
+    const body = remoteMessage.notification?.body ?? "";
+
+    Alert.alert(title, body);
+  });
 
     // Authenticated → Show app stack
     return (
