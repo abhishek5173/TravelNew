@@ -1,3 +1,4 @@
+import { useAuthContext } from "@/utils/authprovider";
 import axios from "axios";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -5,6 +6,7 @@ import {
   ActivityIndicator,
   Dimensions,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -26,6 +28,8 @@ const { width } = Dimensions.get("window");
 export default function HomeScreen() {
   const baseURL = process.env.EXPO_PUBLIC_baseURL;
   const OPEN_TICKETS = `${baseURL}/tourist-chatbot/get-escalated-chats`;
+
+  const { logout } = useAuthContext();
 
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(false);
@@ -50,12 +54,19 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" />
       <View style={styles.container}>
-
         {/* HEADER */}
         <View style={styles.headerBox}>
-          <Text style={styles.header}>Dashboard</Text>
-          <Text style={styles.subText}>Live escalations from tourists</Text>
+          <View>
+            <Text style={styles.header}>Dashboard</Text>
+            <Text style={styles.subText}>Live escalations from tourists</Text>
+          </View>
+          <TouchableOpacity onPress={() => logout()}>
+            <Text style={{ color: "red", fontWeight: "600", fontSize: 16 }}>
+              Logout
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* TOP ROW */}
@@ -145,6 +156,9 @@ const styles = StyleSheet.create({
   headerBox: {
     marginTop: 10,
     marginBottom: 20,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   header: {
     fontSize: 30,
