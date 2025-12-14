@@ -34,6 +34,8 @@ export default function TicketPage() {
   const RESOLVE = `${baseURL}/tourist-chatbot/delete-escalated_chat`;
   const SAMPLE_RESPONSE = `${baseURL}/tourist-chatbot/sample-response`;
   const REPHRASE_ENDPOINT = `${baseURL}/tourist-chatbot/rephrase-message`;
+  const ASK_LOCATION = `${baseURL}/tourist-chatbot/user-location`;
+  const SEND_PHOTO = `${baseURL}/tourist-chatbot/send-image-to-user`;
 
   const scrollRef = useRef<ScrollView>(null);
   const router = useRouter();
@@ -44,6 +46,11 @@ export default function TicketPage() {
   const [response, setResponse] = useState("");
   const [resploading, setresploading] = useState(false);
   const [resolveloading, setresolveloading] = useState(false);
+  const [showActionMenu, setShowActionMenu] = useState(false);
+
+  const [showLocationDialog, setShowLocationDialog] = useState(false);
+  const [locationReason, setLocationReason] = useState("");
+  const [isRequestingLocation, setIsRequestingLocation] = useState(false);
 
   const [aiResponse, setAiResponse] = useState<string[]>([]);
   const [locationInfo, setLocationInfo] = useState<{
@@ -123,7 +130,7 @@ export default function TicketPage() {
 
   const sendMessage = async () => {
     if (!response.trim()) return;
-    
+
     try {
       setresploading(true);
       const rephrasedResponse = await rephraseMessage(response);
@@ -163,6 +170,27 @@ export default function TicketPage() {
     };
   }, []);
 
+  const askLocation = async () => {
+    if (!locationReason.trim()) return;
+
+    try {
+      setIsRequestingLocation(true);
+
+      await axios.post(ASK_LOCATION, {
+        user_phone: ticket.phone,
+        message: locationReason,
+      });
+
+      setShowLocationDialog(false);
+      setLocationReason("");
+      fetchMessages();
+    } catch (err) {
+      console.log("Ask location error", err);
+    } finally {
+      setIsRequestingLocation(false);
+    }
+  };
+
   // ==========================
   // UI
   // ==========================
@@ -186,39 +214,67 @@ export default function TicketPage() {
               <Text style={styles.ticketMeta}>
                 Created: {ticket.created_at.replace(" ", " at ")}
               </Text>
-              <Text style={styles.ticketDescription}>
-                {ticket.description}
-              </Text>
+              <Text style={styles.ticketDescription}>{ticket.description}</Text>
               <View style={styles.divider} />
-             <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center'}}>
-               <Text style={styles.chatHeader}>Chat History</Text>
-               <TouchableOpacity>
-                <Text style={{fontSize:26,fontWeight:'600',color:'#1d4ed8',}}>+</Text>
-               </TouchableOpacity>
-             </View>  
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <Text style={styles.chatHeader}>Chat History</Text>
+                <TouchableOpacity
+                  onPress={() => setShowActionMenu(!showActionMenu)}
+                >
+                  <Text
+                    style={{
+                      fontSize: 26,
+                      fontWeight: "600",
+                      color: "#1d4ed8",
+                    }}
+                  >
+                    +
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
+
+            {showActionMenu && (
+              <View style={styles.actionMenu}>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    setShowActionMenu(false);
+                    setShowLocationDialog(true);
+                  }}
+                >
+                  <Text style={styles.menuItemText}>📍 Ask for Location</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             {/* CHAT BOX */}
             <View style={styles.chatContainer}>
               <View style={styles.actionBar}>
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={() => openSheet("ai")}
-              >
-                <Text style={styles.actionButtonText}>AI Suggestions</Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => openSheet("ai")}
+                >
+                  <Text style={styles.actionButtonText}>AI Suggestions</Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={() => openSheet("location")}
-              >
-                <Text style={styles.actionButtonText}>Location Info</Text>
-              </TouchableOpacity>
-            </View>
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => openSheet("location")}
+                >
+                  <Text style={styles.actionButtonText}>Location Info</Text>
+                </TouchableOpacity>
+              </View>
               <ScrollView
                 ref={scrollRef}
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: 10, }}
+                contentContainerStyle={{ paddingBottom: 10 }}
                 onContentSizeChange={() => scrollRef.current?.scrollToEnd()}
               >
                 {messages.map((msg, index) => (
@@ -276,7 +332,6 @@ export default function TicketPage() {
             </View>
 
             {/* ACTION BAR */}
-            
           </View>
 
           {/* FIXED BOTTOM INPUT + BUTTONS */}
@@ -316,6 +371,64 @@ export default function TicketPage() {
               </TouchableOpacity>
             </View>
           </View>
+
+          {showLocationDialog && (
+  <View style={styles.dialogOverlay}>
+    <View style={styles.dialogBox}>
+      {/* Title */}
+      <View style={styles.dialogHeader}>
+        <Text style={styles.dialogTitle}>Request Location</Text>
+
+        <TouchableOpacity
+          onPress={() => {
+            setShowLocationDialog(false);
+            setLocationReason("");
+          }}
+        >
+          <Text style={styles.dialogClose}>✕</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Body */}
+      <View style={{ padding: 16 }}>
+        <Text style={styles.dialogLabel}>Reason for requesting location</Text>
+
+        <TextInput
+          multiline
+          placeholder="Enter reason..."
+          value={locationReason}
+          onChangeText={setLocationReason}
+          style={styles.dialogTextarea}
+        />
+
+        {/* Buttons */}
+        <View style={styles.dialogButtons}>
+          <TouchableOpacity
+            style={[styles.dialogButton, styles.dialogCancel]}
+            onPress={() => {
+              setShowLocationDialog(false);
+              setLocationReason("");
+            }}
+            disabled={isRequestingLocation}
+          >
+            <Text style={styles.dialogCancelText}>Cancel</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.dialogButton, styles.dialogSubmit]}
+            onPress={askLocation}
+            disabled={isRequestingLocation}
+          >
+            <Text style={styles.dialogSubmitText}>
+              {isRequestingLocation ? "Requesting..." : "Request"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  </View>
+)}
+
 
           {/* BOTTOM SHEET */}
           {sheetType && (
@@ -390,16 +503,14 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: "#e5e7eb", marginTop: 12 },
   chatHeader: { marginTop: 4, fontSize: 14, fontWeight: "600" },
 
-chatContainer: {
-  flex: 1,
-  backgroundColor: "#fff",
-  marginTop: 2,
-  borderRadius: 14,
-  padding: 12,
-  overflow: "hidden"
-},
-
-
+  chatContainer: {
+    flex: 1,
+    backgroundColor: "#fff",
+    marginTop: 2,
+    borderRadius: 14,
+    padding: 12,
+    overflow: "hidden",
+  },
 
   chatRow: { marginVertical: 4, flexDirection: "row" },
   left: { justifyContent: "flex-start" },
@@ -593,4 +704,117 @@ chatContainer: {
   },
 
   locationText: { fontSize: 15, marginBottom: 6 },
+  actionMenu: {
+    backgroundColor: "#fff",
+    padding: 10,
+    borderRadius: 10,
+    marginTop: 6,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+  },
+
+  menuItem: {
+    paddingVertical: 10,
+  },
+
+  menuItemText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#1e3a8a",
+  },
+
+  dialogOverlay: {
+  position: "absolute",
+  left: 0,
+  right: 0,
+  top: 0,
+  bottom: 0,
+  backgroundColor: "rgba(0,0,0,0.5)",
+  justifyContent: "center",
+  alignItems: "center",
+  padding: 20,
+  zIndex: 999,
+},
+
+dialogBox: {
+  width: "100%",
+  maxWidth: 380,
+  backgroundColor: "#fff",
+  borderRadius: 12,
+  overflow: "hidden",
+},
+
+dialogHeader: {
+  flexDirection: "row",
+  justifyContent: "space-between",
+  alignItems: "center",
+  padding: 16,
+  borderBottomWidth: 1,
+  borderColor: "#e5e7eb",
+},
+
+dialogTitle: {
+  fontSize: 16,
+  fontWeight: "700",
+  color: "#111",
+},
+
+dialogClose: {
+  fontSize: 20,
+  color: "#777",
+},
+
+dialogLabel: {
+  fontSize: 13,
+  fontWeight: "600",
+  marginBottom: 6,
+  color: "#333",
+},
+
+dialogTextarea: {
+  backgroundColor: "#f1f5f9",
+  borderWidth: 1,
+  borderColor: "#e5e7eb",
+  borderRadius: 10,
+  padding: 12,
+  minHeight: 80,
+  textAlignVertical: "top",
+  marginBottom: 14,
+},
+
+dialogButtons: {
+  flexDirection: "row",
+  gap: 10,
+},
+
+dialogButton: {
+  flex: 1,
+  paddingVertical: 12,
+  borderRadius: 10,
+  alignItems: "center",
+},
+
+dialogCancel: {
+  backgroundColor: "#fff",
+  borderWidth: 1,
+  borderColor: "#e5e7eb",
+},
+
+dialogCancelText: {
+  color: "#333",
+  fontWeight: "600",
+},
+
+dialogSubmit: {
+  backgroundColor: "#1d4ed8",
+},
+
+dialogSubmitText: {
+  color: "#fff",
+  fontWeight: "600",
+},
+
 });
