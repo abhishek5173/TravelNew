@@ -165,19 +165,24 @@ export default function TicketPage() {
         language: "english",
       });
 
-      const msgs = res.data.response;
+      const msgs: Chat[] = Array.isArray(res.data?.response)
+        ? res.data.response
+        : [];
       setMessages(msgs);
 
-      const last = msgs[msgs.length - 1];
-      if (last?.type === "user") fetchAIResponse(last.text);
+      if (msgs.length > 0) {
+        const last = msgs[msgs.length - 1];
+        if (last?.type === "user") {
+          fetchAIResponse(last.text);
+        }
+      }
     } catch (error) {
       console.log("Chat Fetch Error", error);
     }
   };
 
   useEffect(() => {
-    if (messages.length === 0) return;
-
+    if (!Array.isArray(messages) || messages.length === 0) return;
     const loc = [...messages].reverse().find((m) => m.type === "location");
 
     if (loc) {
@@ -186,7 +191,7 @@ export default function TicketPage() {
         lng: loc.longitude,
       });
     }
-  }, [messages.length]);
+  }, [messages]);
 
   const rephraseMessage = async (message: string) => {
     try {
@@ -366,57 +371,66 @@ export default function TicketPage() {
                 contentContainerStyle={{ paddingBottom: 10 }}
                 onContentSizeChange={() => scrollRef.current?.scrollToEnd()}
               >
-                {messages.map((msg, index) => (
-                  <View
-                    key={index}
-                    style={[
-                      styles.chatRow,
-                      msg.type === "user" ? styles.left : styles.right,
-                    ]}
-                  >
-                    {msg.type === "location" ? (
-                      <View style={styles.locationBubble}>
-                        <Text style={styles.locationTitle}>
-                          📍 Location Shared
-                        </Text>
-                        <Text style={styles.locationSubtitle}>
-                          The user has shared their live location.
-                        </Text>
-
-                        <TouchableOpacity
-                          style={styles.viewLocationBtn}
-                          onPress={() => {
-                            setLocationInfo({
-                              lat: msg.latitude,
-                              lng: msg.longitude,
-                            });
-                            openSheet("location");
-                          }}
-                        >
-                          <Text style={styles.viewLocationText}>
-                            View Location
-                          </Text>
-                        </TouchableOpacity>
-
-                        <Text style={styles.chatTime}>{msg.timestamp}</Text>
-                      </View>
-                    ) : (
-                      <View
-                        style={[
-                          styles.chatBubble,
-                          msg.type === "user"
-                            ? styles.userBubble
-                            : msg.type === "ai_guide"
-                            ? styles.aiBubble
-                            : styles.adminBubble,
-                        ]}
-                      >
-                        <Text style={styles.chatText}>{msg.text}</Text>
-                        <Text style={styles.chatTime}>{msg.timestamp}</Text>
-                      </View>
-                    )}
+                {messages.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyTitle}>No messages yet</Text>
+                    <Text style={styles.emptySubtitle}>
+                      This chat doesn’t have any messages.
+                    </Text>
                   </View>
-                ))}
+                ) : (
+                  messages.map((msg, index) => (
+                    <View
+                      key={index}
+                      style={[
+                        styles.chatRow,
+                        msg.type === "user" ? styles.left : styles.right,
+                      ]}
+                    >
+                      {msg.type === "location" ? (
+                        <View style={styles.locationBubble}>
+                          <Text style={styles.locationTitle}>
+                            📍 Location Shared
+                          </Text>
+                          <Text style={styles.locationSubtitle}>
+                            The user has shared their live location.
+                          </Text>
+
+                          <TouchableOpacity
+                            style={styles.viewLocationBtn}
+                            onPress={() => {
+                              setLocationInfo({
+                                lat: msg.latitude,
+                                lng: msg.longitude,
+                              });
+                              openSheet("location");
+                            }}
+                          >
+                            <Text style={styles.viewLocationText}>
+                              View Location
+                            </Text>
+                          </TouchableOpacity>
+
+                          <Text style={styles.chatTime}>{msg.timestamp}</Text>
+                        </View>
+                      ) : (
+                        <View
+                          style={[
+                            styles.chatBubble,
+                            msg.type === "user"
+                              ? styles.userBubble
+                              : msg.type === "ai_guide"
+                              ? styles.aiBubble
+                              : styles.adminBubble,
+                          ]}
+                        >
+                          <Text style={styles.chatText}>{msg.text}</Text>
+                          <Text style={styles.chatTime}>{msg.timestamp}</Text>
+                        </View>
+                      )}
+                    </View>
+                  ))
+                )}
               </ScrollView>
             </View>
 
@@ -1052,5 +1066,23 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     paddingTop: 90,
     paddingRight: 16,
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+
+  emptyTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#374151",
+    marginBottom: 6,
+  },
+
+  emptySubtitle: {
+    fontSize: 12,
+    color: "#6b7280",
+    textAlign: "center",
   },
 });
